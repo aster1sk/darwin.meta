@@ -18,7 +18,7 @@ curl -sSL \
   -F "description=${DESCRIPTION}" \
   -F "file=@${FILE}" \
   -H "Authorization: Bearer $TOKEN" \
-  https://paranoid.computer/u/
+  https://acablabs.com/u/
 
 # Usage: share "path/to/file.jpg" "*optional* title of post" "*optional* description of post"
 # Be sure to `chmod a+x ~/.bin/share`
