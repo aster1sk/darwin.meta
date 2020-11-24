@@ -248,7 +248,7 @@ func main() {
 		c.JSON(404, gin.H{"code": "PAGE_NOT_FOUND", "message": "Page not found"})
 	})
 
-	r.GET("/:uid", func(c *gin.Context) {
+	r.GET("/v/:uid", func(c *gin.Context) {
 		uid, _ := c.Params.Get("uid")
 		evt := app.GetEvent(uid)
 		path := evt.Path
@@ -300,8 +300,8 @@ func main() {
 			Description: description,
 			Type:        ftype,
 			ContentType: contentType,
-			URLString:   fmt.Sprintf("https://acablabs.com/u/%s", uid),
-			Image:       fmt.Sprintf("https://acablabs.com/u/%s", uid),
+			URLString:   fmt.Sprintf("https://acablabs.com/v/%s", uid),
+			Image:       fmt.Sprintf("https://acablabs.com/v/%s", uid),
 			UUID:        uid,
 			Path:        savePath,
 		}
@@ -309,7 +309,7 @@ func main() {
 			Timestamp: time.Now(),
 			User:      user,
 			Channel:   "#darwin",
-			Message:   fmt.Sprintf(`%s shared "%s" : https://acablabs.com/u/%s`, user, metadata.Title, uid),
+			Message:   fmt.Sprintf(`%s shared "%s" : https://acablabs.com/v/%s`, user, metadata.Title, uid),
 		}
 		msg.MetaData = append(msg.MetaData, &metadata)
 		app.SaveEvent(&msg)
@@ -443,16 +443,16 @@ func (app *App) RunIRC() {
 					ext := strings.Split(data.ContentType, "/")[1]
 					path := fmt.Sprintf("uploads/%s.%s", nuid, ext)
 					data.Path = path
-					data.Image = fmt.Sprintf("https://acablabs.com/u/%s", nuid)
+					data.Image = fmt.Sprintf("https://acablabs.com/v/%s", nuid)
 					DownloadFile(path, url)
 				}
 				if data.Image == "" {
-					data.Image = "https://monad.io/shivaram.jpg"
+					data.Image = "https://acablabs.com/v/e3bec577-7279-46ad-8e92-68a9a5620111"
 				}
 				data.UUID = nuid
 				// irccon.Privmsg(evt.Channel, data.Image)
 				evt.MetaData = append(evt.MetaData, data)
-				evt.Message = fmt.Sprintf("%s shared https://acablabs.com/u/%s", evt.User, nuid)
+				evt.Message = fmt.Sprintf("%s shared https://acablabs.com/v/%s", evt.User, nuid)
 				evt.Channel = "vivi"
 				app.IRCIn <- &evt
 				// js, _ := json.MarshalIndent(data, "", "    ")
