@@ -447,7 +447,7 @@ func (app *App) RunIRC() {
 					DownloadFile(path, url)
 				}
 				if data.Image == "" {
-					data.Image = "https://acablabs.com/v/e3bec577-7279-46ad-8e92-68a9a5620111"
+					data.Image = "/app/placeholder.png"
 				}
 				data.UUID = nuid
 				// irccon.Privmsg(evt.Channel, data.Image)
