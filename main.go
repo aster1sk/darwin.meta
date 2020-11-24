@@ -248,17 +248,9 @@ func main() {
 		c.JSON(404, gin.H{"code": "PAGE_NOT_FOUND", "message": "Page not found"})
 	})
 
-	upload := r.Group("/u")
-	upload.Use(authMiddleware.MiddlewareFunc())
-	upload.GET("/:uid", func(c *gin.Context) {
-		claims := jwt.ExtractClaims(c)
-		token := jwt.GetToken(c)
-		_ = token
-		_ = claims
+	r.GET("/:uid", func(c *gin.Context) {
 		uid, _ := c.Params.Get("uid")
 		evt := app.GetEvent(uid)
-		// js, _ := json.MarshalIndent(&evt, "", "    ")
-		// fmt.Println(string(js))
 		path := evt.Path
 		if path == "" || !fileExists(path) {
 			c.Redirect(302, evt.URLString)
@@ -266,6 +258,9 @@ func main() {
 		}
 		c.File(path)
 	})
+
+	upload := r.Group("/u")
+	upload.Use(authMiddleware.MiddlewareFunc())
 
 	// File upload handler
 	upload.POST("/", func(c *gin.Context) {
