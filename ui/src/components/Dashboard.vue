@@ -1,6 +1,12 @@
 <template>
   <v-container fluid>
-    <v-row>
+  <v-row v-if="!user.username">
+      <v-col>
+          <pre>/msg pybot auth</pre>
+      </v-col>
+  </v-row>
+
+    <v-row v-if="user.username">
       <v-col>
         <h3>Hello {{ user.username }}!</h3>
         <p>Put this in ~/.bin/share:</p>
@@ -40,7 +46,7 @@ curl -sSL \
           </v-img>
 
           <v-card-subtitle class="pb-0">
-          Posted by <strong>{{ event.user }}
+              Posted by <strong>{{ event.user }}</strong>
           </v-card-subtitle>
 
           <v-card-text class="text--primary">
