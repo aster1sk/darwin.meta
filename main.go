@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	rice "github.com/GeertJohan/go.rice"
 	jwt "github.com/appleboy/gin-jwt/v2"
@@ -378,6 +379,34 @@ type MetaData struct {
 	Path        string  `json:"path"`
 }
 
+func intersection(s1, s2 []string) (inter []string) {
+	hash := make(map[string]bool)
+	for _, e := range s1 {
+		hash[e] = true
+	}
+	for _, e := range s2 {
+		// If elements present in the hashmap then append intersection list.
+		if hash[e] {
+			inter = append(inter, e)
+		}
+	}
+	//Remove dups from slice.
+	inter = removeDups(inter)
+	return
+}
+
+//Remove dups from slice.
+func removeDups(elements []string) (nodups []string) {
+	encountered := make(map[string]bool)
+	for _, element := range elements {
+		if !encountered[element] {
+			nodups = append(nodups, element)
+			encountered[element] = true
+		}
+	}
+	return
+}
+
 // RunIRC runs irc client
 func (app *App) RunIRC() {
 
@@ -498,7 +527,6 @@ func (app *App) RunIRC() {
 						Channel:   event.Arguments[0],
 					}
 					app.IRCOut <- &evt
-					app.CurrentTrivia = nil
 				}
 			}
 
@@ -556,7 +584,7 @@ func (app *App) RunIRC() {
 				return
 			}
 
-			reg, err := regexp.Compile("[^a-zA-Z0-9]+")
+			reg, err := regexp.Compile("[^a-zA-Z0-9]")
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -573,11 +601,50 @@ func (app *App) RunIRC() {
 			ans = strings.ReplaceAll(ans, "<i>", "")
 			ans = strings.ReplaceAll(ans, "</i>", "")
 
-			if msg == ans {
+			tmpGuesses := strings.Fields(msg)
+			tmpAnswers := strings.Fields(ans)
+
+			guesses := []string{}
+			answers := []string{}
+
+			for _, x := range tmpGuesses {
+				if x == "an" || x == "a" || x == "the" || x == "and" {
+					continue
+				}
+				guesses = append(guesses, x)
+			}
+			for _, x := range tmpAnswers {
+				if x == "an" || x == "a" || x == "the" || x == "and" {
+					continue
+				}
+				answers = append(answers, x)
+			}
+
+			ansWordCount := float64(len(answers))
+
+			diff := intersection(guesses, answers)
+			if ansWordCount < 1 {
+				return
+			}
+
+			percent := float64(len(diff)) / ansWordCount * 100
+
+			fmt.Printf(
+				"Channel : %s\nGuess : %s\nAnswer : %s\nIntersection : %s\nAccuracy : %f%%\nMatches : %f/%f\n",
+				event.Arguments[0],
+				msg,
+				ans,
+				diff,
+				percent,
+				float64(len(diff)),
+				float64(ansWordCount),
+			)
+
+			if percent >= 50 {
 				evt := IRCEvent{
 					Timestamp: time.Now(),
-					Message:   "Correct!",
-					User:      event.Nick,
+					Message:   fmt.Sprintf("%d%% match : %s", int64(percent), app.CurrentTrivia.Answer),
+					User:      "#darwin",
 					Channel:   event.Arguments[0],
 				}
 				app.IRCOut <- &evt
@@ -902,4 +969,8 @@ type Trivia struct {
 		UpdatedAt  time.Time `json:"updated_at"`
 		CluesCount int       `json:"clues_count"`
 	} `json:"category"`
+}
+
+func isMn(r rune) bool {
+	return unicode.Is(unicode.Mn, r) // Mn: nonspacing marks
 }

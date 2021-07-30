@@ -12,8 +12,8 @@ require (
 	github.com/gorilla/websocket v1.4.2
 	github.com/keighl/metabolize v0.0.0-20150915210303-97ab655d4034
 	github.com/mattn/go-sqlite3 v1.14.5
-	github.com/schollz/closestmatch v2.1.0+incompatible // indirect
 	github.com/thoj/go-ircevent v0.0.0-20190807115034-8e7ce4b5a1eb
 	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b // indirect
+	golang.org/x/text v0.3.3
 	mvdan.cc/xurls/v2 v2.2.0
 )
