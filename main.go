@@ -524,13 +524,18 @@ func (app *App) RunIRC() {
 				question = q[0]
 			}
 
+			q := strings.TrimSpace(question.Question)
+			q = strings.ReplaceAll(q, "<i>", "")
+			q = strings.ReplaceAll(q, "</i>", "")
+
 			msg := question.Answer
 			msg = strings.ReplaceAll(msg, "<i>", "")
 			msg = strings.ReplaceAll(msg, "</i>", "")
+			msg = strings.TrimSpace(msg)
 
 			evt := IRCEvent{
 				Timestamp: time.Now(),
-				Message:   fmt.Sprintf("%s : %s", question.Category.Title, question.Question),
+				Message:   fmt.Sprintf("%s : %s", question.Category.Title, q),
 				User:      event.Nick,
 				Channel:   event.Arguments[0],
 			}
@@ -557,11 +562,13 @@ func (app *App) RunIRC() {
 			}
 
 			msg := reg.ReplaceAllString(evt.Message, " ")
+			msg = strings.TrimSpace(msg)
 			msg = strings.ToLower(msg)
 			msg = strings.ReplaceAll(msg, "<i>", "")
 			msg = strings.ReplaceAll(msg, "</i>", "")
 
 			ans := reg.ReplaceAllString(app.CurrentTrivia.Answer, " ")
+			ans = strings.TrimSpace(ans)
 			ans = strings.ToLower(ans)
 			ans = strings.ReplaceAll(ans, "<i>", "")
 			ans = strings.ReplaceAll(ans, "</i>", "")
