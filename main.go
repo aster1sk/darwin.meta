@@ -488,7 +488,19 @@ func (app *App) RunIRC() {
 			app.Users[evt.User] = uid
 			irccon.Privmsg(evt.User, fmt.Sprintf("https://acablabs.com/auth?username=%s&password=%s", evt.User, uid))
 
-		case "giveup":
+		case ",remind":
+			if msg := app.CurrentTrivia.Question; msg != "" {
+				evt := IRCEvent{
+					Timestamp: time.Now(),
+					Message:   fmt.Sprintf("Trivia question : %s", msg),
+					User:      event.Nick,
+					Channel:   event.Arguments[0],
+				}
+				app.IRCOut <- &evt
+				app.CurrentTrivia = nil
+			}
+
+		case ",giveup":
 			if msg := app.CurrentTrivia.Answer; msg != "" {
 				evt := IRCEvent{
 					Timestamp: time.Now(),
@@ -500,7 +512,7 @@ func (app *App) RunIRC() {
 				app.CurrentTrivia = nil
 			}
 
-		case "trivia":
+		case ",trivia":
 			var question Trivia
 			if q := app.GetTriviaQuestion(); len(q) > 0 {
 				question = q[0]
@@ -515,7 +527,7 @@ func (app *App) RunIRC() {
 			app.IRCOut <- &evt
 			app.CurrentTrivia = &question
 
-		case "latest":
+		case ",latest":
 			app.GetEvents(0, 0)
 
 		default:
