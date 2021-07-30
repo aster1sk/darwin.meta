@@ -489,27 +489,33 @@ func (app *App) RunIRC() {
 			irccon.Privmsg(evt.User, fmt.Sprintf("https://acablabs.com/auth?username=%s&password=%s", evt.User, uid))
 
 		case ",remind":
-			if msg := app.CurrentTrivia.Question; msg != "" {
-				evt := IRCEvent{
-					Timestamp: time.Now(),
-					Message:   fmt.Sprintf("Trivia question : %s", msg),
-					User:      event.Nick,
-					Channel:   event.Arguments[0],
+			if cur := app.CurrentTrivia; cur != nil {
+				if msg := app.CurrentTrivia.Question; msg != "" {
+					evt := IRCEvent{
+						Timestamp: time.Now(),
+						Message:   fmt.Sprintf("Trivia question : %s", msg),
+						User:      event.Nick,
+						Channel:   event.Arguments[0],
+					}
+					app.IRCOut <- &evt
+					app.CurrentTrivia = nil
 				}
-				app.IRCOut <- &evt
-				app.CurrentTrivia = nil
 			}
 
 		case ",giveup":
-			if msg := app.CurrentTrivia.Answer; msg != "" {
-				evt := IRCEvent{
-					Timestamp: time.Now(),
-					Message:   fmt.Sprintf("Answer : %s", msg),
-					User:      event.Nick,
-					Channel:   event.Arguments[0],
+			if cur := app.CurrentTrivia; cur != nil {
+				if msg := app.CurrentTrivia.Answer; msg != "" {
+					msg = strings.ReplaceAll(msg, "<i>", "")
+					msg = strings.ReplaceAll(msg, "</i>", "")
+					evt := IRCEvent{
+						Timestamp: time.Now(),
+						Message:   fmt.Sprintf("Answer : %s", msg),
+						User:      event.Nick,
+						Channel:   event.Arguments[0],
+					}
+					app.IRCOut <- &evt
+					app.CurrentTrivia = nil
 				}
-				app.IRCOut <- &evt
-				app.CurrentTrivia = nil
 			}
 
 		case ",trivia":
@@ -517,13 +523,18 @@ func (app *App) RunIRC() {
 			if q := app.GetTriviaQuestion(); len(q) > 0 {
 				question = q[0]
 			}
+
+			msg := question.Answer
+			msg = strings.ReplaceAll(msg, "<i>", "")
+			msg = strings.ReplaceAll(msg, "</i>", "")
+
 			evt := IRCEvent{
 				Timestamp: time.Now(),
 				Message:   fmt.Sprintf("%s : %s", question.Category.Title, question.Question),
 				User:      event.Nick,
 				Channel:   event.Arguments[0],
 			}
-			log.Println(fmt.Sprintf("%s : A | %s", question.Question, question.Answer))
+			log.Println(fmt.Sprintf("%s : A | %s", question.Question, msg))
 			app.IRCOut <- &evt
 			app.CurrentTrivia = &question
 
@@ -539,6 +550,7 @@ func (app *App) RunIRC() {
 			if ok := app.CurrentTrivia; ok == nil {
 				return
 			}
+
 			reg, err := regexp.Compile("[^a-zA-Z0-9]+")
 			if err != nil {
 				log.Fatal(err)
@@ -546,9 +558,13 @@ func (app *App) RunIRC() {
 
 			msg := reg.ReplaceAllString(evt.Message, " ")
 			msg = strings.ToLower(msg)
+			msg = strings.ReplaceAll(msg, "<i>", "")
+			msg = strings.ReplaceAll(msg, "</i>", "")
 
 			ans := reg.ReplaceAllString(app.CurrentTrivia.Answer, " ")
 			ans = strings.ToLower(ans)
+			ans = strings.ReplaceAll(ans, "<i>", "")
+			ans = strings.ReplaceAll(ans, "</i>", "")
 
 			if msg == ans {
 				evt := IRCEvent{
