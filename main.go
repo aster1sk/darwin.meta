@@ -416,7 +416,7 @@ func (app *App) RunIRC() {
 	// irccon.Debug = true
 	irccon.TLSConfig = &tls.Config{InsecureSkipVerify: true}
 	irccon.UseTLS = true
-	irccon.AddCallback("001", func(e *irc.Event) { irccon.Join("#darwin") })
+	irccon.AddCallback("001", func(e *irc.Event) { irccon.Join("#trivia") })
 	irccon.AddCallback("366", func(e *irc.Event) {})
 	irccon.AddCallback("367", func(e *irc.Event) {})
 	err := irccon.Connect("irc.darwin.network:6697")
@@ -517,17 +517,44 @@ func (app *App) RunIRC() {
 			app.Users[evt.User] = uid
 			irccon.Privmsg(evt.User, fmt.Sprintf("https://acablabs.com/auth?username=%s&password=%s", evt.User, uid))
 
-		case ",remind":
+		case ",trivia":
 			if cur := app.CurrentTrivia; cur != nil {
 				if msg := app.CurrentTrivia.Question; msg != "" {
 					evt := IRCEvent{
 						Timestamp: time.Now(),
-						Message:   fmt.Sprintf("Trivia question : %s", msg),
+						Message:   fmt.Sprintf("Current question : %s", msg),
 						User:      event.Nick,
 						Channel:   event.Arguments[0],
 					}
 					app.IRCOut <- &evt
 				}
+			} else {
+
+				// Get new question
+				var question Trivia
+				if q := app.GetTriviaQuestion(); len(q) > 0 {
+					question = q[0]
+				}
+
+				q := strings.TrimSpace(question.Question)
+				q = strings.ReplaceAll(q, "<i>", "")
+				q = strings.ReplaceAll(q, "</i>", "")
+
+				msg := question.Answer
+				msg = strings.ReplaceAll(msg, "<i>", "")
+				msg = strings.ReplaceAll(msg, "</i>", "")
+				msg = strings.TrimSpace(msg)
+
+				evt = IRCEvent{
+					Timestamp: time.Now(),
+					Message:   fmt.Sprintf("%s : %s", question.Category.Title, q),
+					User:      event.Nick,
+					Channel:   event.Arguments[0],
+				}
+				log.Println(fmt.Sprintf("%s : A | %s", question.Question, msg))
+				app.IRCOut <- &evt
+				app.CurrentTrivia = &question
+
 			}
 
 		case ",giveup":
@@ -542,34 +569,34 @@ func (app *App) RunIRC() {
 						Channel:   event.Arguments[0],
 					}
 					app.IRCOut <- &evt
-					app.CurrentTrivia = nil
 				}
+
+				// Get new question
+				var question Trivia
+				if q := app.GetTriviaQuestion(); len(q) > 0 {
+					question = q[0]
+				}
+
+				q := strings.TrimSpace(question.Question)
+				q = strings.ReplaceAll(q, "<i>", "")
+				q = strings.ReplaceAll(q, "</i>", "")
+
+				msg := question.Answer
+				msg = strings.ReplaceAll(msg, "<i>", "")
+				msg = strings.ReplaceAll(msg, "</i>", "")
+				msg = strings.TrimSpace(msg)
+
+				evt = IRCEvent{
+					Timestamp: time.Now(),
+					Message:   fmt.Sprintf("New question : %s : %s", question.Category.Title, q),
+					User:      event.Nick,
+					Channel:   event.Arguments[0],
+				}
+				log.Println(fmt.Sprintf("%s : A | %s", question.Question, msg))
+				app.IRCOut <- &evt
+				app.CurrentTrivia = &question
+
 			}
-
-		case ",trivia":
-			var question Trivia
-			if q := app.GetTriviaQuestion(); len(q) > 0 {
-				question = q[0]
-			}
-
-			q := strings.TrimSpace(question.Question)
-			q = strings.ReplaceAll(q, "<i>", "")
-			q = strings.ReplaceAll(q, "</i>", "")
-
-			msg := question.Answer
-			msg = strings.ReplaceAll(msg, "<i>", "")
-			msg = strings.ReplaceAll(msg, "</i>", "")
-			msg = strings.TrimSpace(msg)
-
-			evt := IRCEvent{
-				Timestamp: time.Now(),
-				Message:   fmt.Sprintf("%s : %s", question.Category.Title, q),
-				User:      event.Nick,
-				Channel:   event.Arguments[0],
-			}
-			log.Println(fmt.Sprintf("%s : A | %s", question.Question, msg))
-			app.IRCOut <- &evt
-			app.CurrentTrivia = &question
 
 		case ",latest":
 			app.GetEvents(0, 0)
@@ -584,22 +611,24 @@ func (app *App) RunIRC() {
 				return
 			}
 
-			reg, err := regexp.Compile("[^a-zA-Z0-9]")
+			reg, err := regexp.Compile("[^a-zA-Z0-9]+")
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			msg := reg.ReplaceAllString(evt.Message, " ")
-			msg = strings.TrimSpace(msg)
+			msg := strings.TrimSpace(evt.Message)
 			msg = strings.ToLower(msg)
 			msg = strings.ReplaceAll(msg, "<i>", "")
 			msg = strings.ReplaceAll(msg, "</i>", "")
+			msg = reg.ReplaceAllString(msg, " ")
 
-			ans := reg.ReplaceAllString(app.CurrentTrivia.Answer, " ")
-			ans = strings.TrimSpace(ans)
+			ans := strings.TrimSpace(app.CurrentTrivia.Answer)
 			ans = strings.ToLower(ans)
 			ans = strings.ReplaceAll(ans, "<i>", "")
 			ans = strings.ReplaceAll(ans, "</i>", "")
+			ans = reg.ReplaceAllString(ans, " ")
+			log.Print("Q", msg)
+			log.Print("A", msg)
 
 			tmpGuesses := strings.Fields(msg)
 			tmpAnswers := strings.Fields(ans)
@@ -644,11 +673,36 @@ func (app *App) RunIRC() {
 				evt := IRCEvent{
 					Timestamp: time.Now(),
 					Message:   fmt.Sprintf("%d%% match : %s", int64(percent), app.CurrentTrivia.Answer),
-					User:      "#darwin",
+					User:      "#trivia",
 					Channel:   event.Arguments[0],
 				}
 				app.IRCOut <- &evt
-				app.CurrentTrivia = nil
+
+				// Get new question
+				var question Trivia
+				if q := app.GetTriviaQuestion(); len(q) > 0 {
+					question = q[0]
+				}
+
+				q := strings.TrimSpace(question.Question)
+				q = strings.ReplaceAll(q, "<i>", "")
+				q = strings.ReplaceAll(q, "</i>", "")
+
+				msg := question.Answer
+				msg = strings.ReplaceAll(msg, "<i>", "")
+				msg = strings.ReplaceAll(msg, "</i>", "")
+				msg = strings.TrimSpace(msg)
+
+				evt = IRCEvent{
+					Timestamp: time.Now(),
+					Message:   fmt.Sprintf("%s : %s", question.Category.Title, q),
+					User:      event.Nick,
+					Channel:   event.Arguments[0],
+				}
+				log.Println(fmt.Sprintf("%s : A | %s", question.Question, msg))
+				app.IRCOut <- &evt
+				app.CurrentTrivia = &question
+
 				return
 			}
 
