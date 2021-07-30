@@ -731,7 +731,7 @@ func (app *App) CreateTables() {
 
 // GetTriviaQuestion displays events
 func (app *App) GetTriviaQuestion() (target []Trivia) {
-	url := "http://jservice.io/api/random"
+	url := "https://jservice.io/api/random"
 	var client = &http.Client{Timeout: 10 * time.Second}
 	r, err := client.Get(url)
 	if err != nil {
