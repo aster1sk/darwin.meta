@@ -2,12 +2,14 @@ package main
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -30,14 +32,15 @@ import (
 
 // App is application
 type App struct {
-	Mutex   sync.Mutex
-	IRCOut  chan *IRCEvent           `json:"-"` // outbound IRC messages
-	IRCIn   chan *IRCEvent           `json:"-"` // inbound irc messages (auth etc)
-	HTTPIn  chan *IRCEvent           `json:"-"` // inbound messages from HTTP -> IRC
-	WSOut   chan *DBMessage          `json:"-"` // inbound messages from HTTP -> IRC
-	Users   map[string]string        `json:"-"`
-	Clients map[*websocket.Conn]bool `json:"-"`
-	DB      *sql.DB                  `json:"-"`
+	Mutex         sync.Mutex
+	IRCOut        chan *IRCEvent           `json:"-"` // outbound IRC messages
+	IRCIn         chan *IRCEvent           `json:"-"` // inbound irc messages (auth etc)
+	HTTPIn        chan *IRCEvent           `json:"-"` // inbound messages from HTTP -> IRC
+	WSOut         chan *DBMessage          `json:"-"` // inbound messages from HTTP -> IRC
+	Users         map[string]string        `json:"-"`
+	Clients       map[*websocket.Conn]bool `json:"-"`
+	DB            *sql.DB                  `json:"-"`
+	CurrentTrivia *Trivia
 }
 
 // DBMessage is a flattened ircevent
@@ -308,7 +311,7 @@ func main() {
 		msg := IRCEvent{
 			Timestamp: time.Now(),
 			User:      user,
-			Channel:   "#darwin",
+			Channel:   "vivi",
 			Message:   fmt.Sprintf(`%s shared "%s" : https://acablabs.com/v/%s`, user, metadata.Title, uid),
 		}
 		msg.MetaData = append(msg.MetaData, &metadata)
@@ -478,22 +481,80 @@ func (app *App) RunIRC() {
 			app.SaveEvent(&evt)
 		}()
 
-		// auth
-		if evt.Message == "auth" {
+		switch evt.Message {
+
+		case "auth":
 			uid := uuid.New().String()
 			app.Users[evt.User] = uid
 			irccon.Privmsg(evt.User, fmt.Sprintf("https://acablabs.com/auth?username=%s&password=%s", evt.User, uid))
+
+		case "giveup":
+			evt := IRCEvent{
+				Timestamp: time.Now(),
+				Message:   fmt.Sprintf("Answer : %s", app.CurrentTrivia.Answer),
+				User:      event.Nick,
+				Channel:   event.Arguments[0],
+			}
+			app.IRCOut <- &evt
+			app.CurrentTrivia = nil
+
+		case "trivia":
+			var question Trivia
+			if q := app.GetTriviaQuestion(); len(q) > 0 {
+				question = q[0]
+			}
+			evt := IRCEvent{
+				Timestamp: time.Now(),
+				Message:   fmt.Sprintf("%s : %s", question.Category.Title, question.Question),
+				User:      event.Nick,
+				Channel:   event.Arguments[0],
+			}
+			app.IRCOut <- &evt
+			app.CurrentTrivia = &question
+
+		case "latest":
+			app.GetEvents(0, 0)
+
+		default:
+
+			if event.User == "nish" {
+				return
+			}
+
+			if ok := app.CurrentTrivia; ok == nil {
+				return
+			}
+			reg, err := regexp.Compile("[^a-zA-Z0-9]+")
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			msg := reg.ReplaceAllString(evt.Message, " ")
+			msg = strings.ToLower(msg)
+
+			ans := reg.ReplaceAllString(app.CurrentTrivia.Answer, " ")
+			ans = strings.ToLower(ans)
+
+			if msg == ans {
+				evt := IRCEvent{
+					Timestamp: time.Now(),
+					Message:   "Correct!",
+					User:      event.Nick,
+					Channel:   event.Arguments[0],
+				}
+				app.IRCOut <- &evt
+				app.CurrentTrivia = nil
+				return
+			}
+
 		}
 
-		if evt.Message == "latest" {
-			app.GetEvents(0, 0)
-		}
 	})
 
 	// What to do when we receive an HTTP event
 	go func() {
 		for msg := range app.HTTPIn {
-			irccon.Privmsg(msg.Channel, msg.Message)
+			irccon.Notice(msg.Channel, msg.Message)
 		}
 	}()
 
@@ -637,6 +698,22 @@ func (app *App) CreateTables() {
 	}
 }
 
+// GetTriviaQuestion displays events
+func (app *App) GetTriviaQuestion() (target []Trivia) {
+	url := "http://jservice.io/api/random"
+	var client = &http.Client{Timeout: 10 * time.Second}
+	r, err := client.Get(url)
+	if err != nil {
+		log.Println(err)
+	}
+	defer r.Body.Close()
+	err = json.NewDecoder(r.Body).Decode(&target)
+	if err != nil {
+		log.Println(err)
+	}
+	return
+}
+
 // GetEvents displays events
 func (app *App) GetEvents(offset, limit int) (events []*DBMessage) {
 	if limit == 0 {
@@ -767,4 +844,24 @@ func fileExists(filename string) bool {
 		return false
 	}
 	return !info.IsDir()
+}
+
+type Trivia struct {
+	ID           int         `json:"id"`
+	Answer       string      `json:"answer"`
+	Question     string      `json:"question"`
+	Value        int         `json:"value"`
+	Airdate      time.Time   `json:"airdate"`
+	CreatedAt    time.Time   `json:"created_at"`
+	UpdatedAt    time.Time   `json:"updated_at"`
+	CategoryID   int         `json:"category_id"`
+	GameID       interface{} `json:"game_id"`
+	InvalidCount interface{} `json:"invalid_count"`
+	Category     struct {
+		ID         int       `json:"id"`
+		Title      string    `json:"title"`
+		CreatedAt  time.Time `json:"created_at"`
+		UpdatedAt  time.Time `json:"updated_at"`
+		CluesCount int       `json:"clues_count"`
+	} `json:"category"`
 }
